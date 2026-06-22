@@ -7,9 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
+    libsqlite3-dev \
     unzip \
     && docker-php-ext-install \
         pdo_mysql \
+        pdo_sqlite \
         mbstring \
         exif \
         pcntl \

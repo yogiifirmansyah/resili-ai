@@ -1,0 +1,8 @@
+<?php
+
+use Tests\MySqlTestCase;
+use Tests\TestCase;
+
+pest()->extend(TestCase::class)->in('Feature/HealthCheckTest.php');
+
+pest()->extend(MySqlTestCase::class)->in('Feature/FeedbackSubmissionTest.php');
