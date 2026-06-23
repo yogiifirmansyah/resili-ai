@@ -17,6 +17,28 @@ class FeedbackController extends Controller
         private FeedbackService $feedbackService,
     ) {}
 
+    #[OA\Get(
+        path: '/feedback',
+        operationId: 'listFeedback',
+        summary: 'Daftar semua feedback',
+        description: 'Mengambil seluruh feedback yang tersimpan di MySQL, diurutkan dari yang terbaru.',
+        tags: ['Feedback'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Daftar feedback berhasil diambil.',
+                content: new OA\JsonContent(
+                    type: 'array',
+                    items: new OA\Items(ref: '#/components/schemas/FeedbackResource'),
+                ),
+            ),
+        ],
+    )]
+    public function index(): JsonResponse
+    {
+        return response()->json($this->feedbackService->list());
+    }
+
     #[OA\Post(
         path: '/feedback',
         operationId: 'storeFeedback',

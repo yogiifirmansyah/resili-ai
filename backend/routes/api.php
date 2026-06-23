@@ -10,4 +10,5 @@ Route::get('/health', function () {
     ]);
 });
 
+Route::get('/feedback', [FeedbackController::class, 'index']);
 Route::post('/feedback', [FeedbackController::class, 'store']);

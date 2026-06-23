@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Contracts\FeedbackRepositoryInterface;
 use App\Models\Feedback;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Redis;
 use InvalidArgumentException;
 
@@ -30,6 +31,16 @@ class FeedbackRepository implements FeedbackRepositoryInterface
         $this->requireIdempotencyKey($payload);
 
         Redis::rpush(self::FALLBACK_QUEUE_KEY, json_encode($payload));
+    }
+
+    /**
+     * @return Collection<int, Feedback>
+     */
+    public function all(): Collection
+    {
+        return Feedback::query()
+            ->orderByDesc('created_at')
+            ->get();
     }
 
     /**

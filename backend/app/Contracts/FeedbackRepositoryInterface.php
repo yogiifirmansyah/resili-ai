@@ -17,4 +17,9 @@ interface FeedbackRepositoryInterface
      * @param  array{id: string, customer_name?: ?string, feedback_text: string, status_ai?: string, sentiment?: ?string, category?: ?string}  $payload
      */
     public function pushToFallbackQueue(array $payload): void;
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Feedback>
+     */
+    public function all(): \Illuminate\Database\Eloquent\Collection;
 }

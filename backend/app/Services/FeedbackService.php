@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Contracts\FeedbackRepositoryInterface;
 use App\Jobs\AnalyzeFeedbackSentiment;
+use App\Models\Feedback;
 use Illuminate\Database\DetectsLostConnections;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use PDOException;
@@ -17,6 +19,14 @@ class FeedbackService
     public function __construct(
         private FeedbackRepositoryInterface $repository,
     ) {}
+
+    /**
+     * @return Collection<int, Feedback>
+     */
+    public function list(): Collection
+    {
+        return $this->repository->all();
+    }
 
     /**
      * @param  array{id: string, customer_name?: ?string, feedback_text: string, status_ai?: string, sentiment?: ?string, category?: ?string}  $payload
