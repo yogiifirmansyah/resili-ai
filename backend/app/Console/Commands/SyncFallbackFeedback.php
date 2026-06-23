@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Contracts\FeedbackRepositoryInterface;
 use App\Models\Feedback;
 use Illuminate\Console\Command;
 use Illuminate\Database\DetectsLostConnections;
@@ -16,8 +17,6 @@ class SyncFallbackFeedback extends Command
 {
     use DetectsLostConnections;
 
-    private const FALLBACK_QUEUE_KEY = 'feedback_fallback_queue';
-
     protected $signature = 'resili:sync-feedback';
 
     protected $description = 'Sinkronkan feedback dari antrean Redis fallback ke MySQL';
@@ -26,8 +25,10 @@ class SyncFallbackFeedback extends Command
     {
         $syncedCount = 0;
 
-        while (Redis::llen(self::FALLBACK_QUEUE_KEY) > 0) {
-            $payload = Redis::lpop(self::FALLBACK_QUEUE_KEY);
+        $queueKey = FeedbackRepositoryInterface::FALLBACK_QUEUE_KEY;
+
+        while (Redis::llen($queueKey) > 0) {
+            $payload = Redis::lpop($queueKey);
 
             if ($payload === null || $payload === false) {
                 break;
@@ -65,7 +66,7 @@ class SyncFallbackFeedback extends Command
                     throw $e;
                 }
 
-                Redis::lpush(self::FALLBACK_QUEUE_KEY, $payload);
+                Redis::lpush($queueKey, $payload);
 
                 Log::error('MySQL unavailable during fallback feedback sync, stopping with remaining queue intact.', [
                     'feedback_id' => $data['id'] ?? null,

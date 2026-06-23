@@ -3,79 +3,67 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreFeedbackRequest;
-use App\Jobs\AnalyzeFeedbackSentiment;
-use App\Models\Feedback;
-use Illuminate\Database\DetectsLostConnections;
-use Illuminate\Database\QueryException;
+use App\Services\FeedbackService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Redis;
-use PDOException;
-use Throwable;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Feedback',
+    description: 'Endpoint pengiriman feedback pelanggan',
+)]
 class FeedbackController extends Controller
 {
-    use DetectsLostConnections;
+    public function __construct(
+        private FeedbackService $feedbackService,
+    ) {}
 
-    private const FALLBACK_QUEUE_KEY = 'feedback_fallback_queue';
-
+    #[OA\Post(
+        path: '/feedback',
+        operationId: 'storeFeedback',
+        summary: 'Kirim feedback pelanggan',
+        description: 'Menyimpan feedback ke MySQL. Jika koneksi database gagal, data dialihkan ke antrean Redis fallback.',
+        tags: ['Feedback'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(ref: '#/components/schemas/StoreFeedbackRequest'),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Feedback berhasil disimpan ke MySQL dan job analisis AI dijadwalkan.',
+                content: new OA\JsonContent(ref: '#/components/schemas/FeedbackResource'),
+            ),
+            new OA\Response(
+                response: 202,
+                description: 'MySQL tidak tersedia; feedback dimasukkan ke antrean Redis fallback.',
+                content: new OA\JsonContent(ref: '#/components/schemas/FeedbackQueuedResponse'),
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Validasi input gagal (UUID tidak valid, field wajib kosong, atau ID duplikat).',
+                content: new OA\JsonContent(ref: '#/components/schemas/ValidationErrorResponse'),
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Kesalahan sistem internal (misalnya kegagalan non-koneksi database atau Redis).',
+                content: new OA\JsonContent(ref: '#/components/schemas/ServerErrorResponse'),
+            ),
+        ],
+    )]
     public function store(StoreFeedbackRequest $request): JsonResponse
     {
-        $payload = array_merge($request->validated(), [
+        $result = $this->feedbackService->store(array_merge($request->validated(), [
             'status_ai' => 'pending',
-        ]);
+        ]));
 
-        try {
-            $feedback = Feedback::create($payload);
-
-            AnalyzeFeedbackSentiment::dispatch($feedback);
-
-            return response()->json($feedback, 201);
-        } catch (QueryException|PDOException|Throwable $e) {
-            if (! $this->isDatabaseConnectionFailure($e)) {
-                throw $e;
-            }
-
-            Log::error('MySQL unavailable during feedback submission, routing to Redis fallback.', [
-                'feedback_id' => $payload['id'],
-                'exception' => $e->getMessage(),
-                'exception_class' => $e::class,
-            ]);
-
-            try {
-                Redis::rpush(self::FALLBACK_QUEUE_KEY, json_encode($payload));
-            } catch (Throwable $redisException) {
-                Log::error('Redis fallback queue write failed.', [
-                    'feedback_id' => $payload['id'],
-                    'exception' => $redisException->getMessage(),
-                    'exception_class' => $redisException::class,
-                ]);
-
-                throw $redisException;
-            }
-
+        if ($result->queued) {
             return response()->json([
                 'message' => 'Feedback disimpan di antrean fallback karena database sementara tidak tersedia.',
-                'id' => $payload['id'],
+                'id' => $result->id,
                 'queued' => true,
             ], 202);
         }
-    }
 
-    private function isDatabaseConnectionFailure(Throwable $e): bool
-    {
-        $current = $e;
-
-        while ($current !== null) {
-            if ($current instanceof QueryException || $current instanceof PDOException) {
-                if ($this->causedByLostConnection($current)) {
-                    return true;
-                }
-            }
-
-            $current = $current->getPrevious();
-        }
-
-        return false;
+        return response()->json($result->feedback, 201);
     }
 }

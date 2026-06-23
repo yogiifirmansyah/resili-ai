@@ -1,0 +1,217 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "ResiliAI API",
+        "description": "API dokumentasi untuk sistem feedback resilient dengan penyimpanan MySQL utama dan failover Redis.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/api",
+            "description": "Base path API ResiliAI"
+        }
+    ],
+    "paths": {
+        "/feedback": {
+            "post": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Kirim feedback pelanggan",
+                "description": "Menyimpan feedback ke MySQL. Jika koneksi database gagal, data dialihkan ke antrean Redis fallback.",
+                "operationId": "storeFeedback",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreFeedbackRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Feedback berhasil disimpan ke MySQL dan job analisis AI dijadwalkan.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeedbackResource"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "MySQL tidak tersedia; feedback dimasukkan ke antrean Redis fallback.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeedbackQueuedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validasi input gagal (UUID tidak valid, field wajib kosong, atau ID duplikat).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan sistem internal (misalnya kegagalan non-koneksi database atau Redis).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ServerErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "StoreFeedbackRequest": {
+                "required": [
+                    "id",
+                    "feedback_text"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "UUID v4 yang dihasilkan klien, digunakan sebagai idempotency key.",
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "feedback_text": {
+                        "description": "Isi feedback dari pelanggan.",
+                        "type": "string",
+                        "example": "Produk rusak saat diterima."
+                    }
+                },
+                "type": "object"
+            },
+            "FeedbackResource": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "customer_name": {
+                        "type": "string",
+                        "example": "Budi Santoso",
+                        "nullable": true
+                    },
+                    "feedback_text": {
+                        "type": "string",
+                        "example": "Produk rusak saat diterima."
+                    },
+                    "sentiment": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "category": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "status_ai": {
+                        "type": "string",
+                        "example": "pending"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-06-23T10:00:00.000000Z"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-06-23T10:00:00.000000Z"
+                    }
+                },
+                "type": "object"
+            },
+            "FeedbackQueuedResponse": {
+                "required": [
+                    "message",
+                    "id",
+                    "queued"
+                ],
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Feedback disimpan di antrean fallback karena database sementara tidak tersedia."
+                    },
+                    "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    },
+                    "queued": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            },
+            "ValidationErrorResponse": {
+                "required": [
+                    "message",
+                    "errors"
+                ],
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "The id field is required. (and 1 more error)"
+                    },
+                    "errors": {
+                        "type": "object",
+                        "example": {
+                            "id": [
+                                "The id field is required."
+                            ],
+                            "feedback_text": [
+                                "The feedback text field is required."
+                            ]
+                        },
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "ServerErrorResponse": {
+                "required": [
+                    "message"
+                ],
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Server Error"
+                    }
+                },
+                "type": "object"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Feedback",
+            "description": "Endpoint pengiriman feedback pelanggan"
+        }
+    ]
+}
