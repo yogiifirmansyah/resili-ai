@@ -2,6 +2,7 @@
 
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { FeedbackTable } from "@/components/FeedbackTable";
+import { InsightPanel } from "@/components/InsightPanel";
 import { ApiError, createFeedback, fetchFeedback } from "@/lib/api";
 import type { CreateFeedbackPayload, FeedbackListItem } from "@/types/feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -235,6 +236,10 @@ export function Dashboard() {
             </div>
           </div>
         )}
+
+        <div className="mb-8">
+          <InsightPanel refreshToken={listVersion} />
+        </div>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_1fr]">
           <section>

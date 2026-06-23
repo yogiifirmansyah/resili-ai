@@ -32,3 +32,7 @@ export interface CreateFeedbackPayload {
 export type CreateFeedbackResult =
   | { type: "created"; feedback: Feedback }
   | { type: "queued"; id: string; message: string };
+
+export interface FeedbackInsight {
+  insight: string;
+}

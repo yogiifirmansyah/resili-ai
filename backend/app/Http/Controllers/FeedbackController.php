@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreFeedbackRequest;
+use App\Exceptions\GeminiApiException;
 use App\Services\FeedbackService;
 use Illuminate\Http\JsonResponse;
 use OpenApi\Attributes as OA;
@@ -37,6 +38,50 @@ class FeedbackController extends Controller
     public function index(): JsonResponse
     {
         return response()->json($this->feedbackService->list());
+    }
+
+    #[OA\Get(
+        path: '/feedback/insight',
+        operationId: 'feedbackInsight',
+        summary: 'Executive summary keluhan pelanggan',
+        description: 'Menganalisis 50–100 keluhan terbaru menggunakan Gemini AI dan mengembalikan rangkuman taktis untuk manajemen.',
+        tags: ['Feedback'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Executive summary berhasil dibuat.',
+                content: new OA\JsonContent(
+                    required: ['insight'],
+                    properties: [
+                        new OA\Property(
+                            property: 'insight',
+                            type: 'string',
+                            example: 'Mayoritas keluhan berfokus pada keterlambatan layanan pelanggan...',
+                        ),
+                    ],
+                    type: 'object',
+                ),
+            ),
+            new OA\Response(
+                response: 503,
+                description: 'Gemini AI tidak tersedia atau gagal merespons.',
+                content: new OA\JsonContent(ref: '#/components/schemas/ServerErrorResponse'),
+            ),
+        ],
+    )]
+    public function insight(): JsonResponse
+    {
+        try {
+            return response()->json([
+                'insight' => $this->feedbackService->insight(),
+            ]);
+        } catch (GeminiApiException $e) {
+            return response()->json([
+                'message' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Gagal menghasilkan insight dari Gemini AI.',
+            ], 503);
+        }
     }
 
     #[OA\Post(

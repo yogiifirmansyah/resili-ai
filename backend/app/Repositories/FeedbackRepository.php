@@ -44,6 +44,19 @@ class FeedbackRepository implements FeedbackRepositoryInterface
     }
 
     /**
+     * @return Collection<int, Feedback>
+     */
+    public function latestComplaints(int $limit = 100): Collection
+    {
+        $limit = max(50, min($limit, 100));
+
+        return Feedback::query()
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     private function requireIdempotencyKey(array $payload): string

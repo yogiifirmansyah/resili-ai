@@ -22,4 +22,9 @@ interface FeedbackRepositoryInterface
      * @return \Illuminate\Database\Eloquent\Collection<int, Feedback>
      */
     public function all(): \Illuminate\Database\Eloquent\Collection;
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Feedback>
+     */
+    public function latestComplaints(int $limit = 100): \Illuminate\Database\Eloquent\Collection;
 }

@@ -10,5 +10,6 @@ Route::get('/health', function () {
     ]);
 });
 
+Route::get('/feedback/insight', [FeedbackController::class, 'insight']);
 Route::get('/feedback', [FeedbackController::class, 'index']);
 Route::post('/feedback', [FeedbackController::class, 'store']);

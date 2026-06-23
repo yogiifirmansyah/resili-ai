@@ -3,11 +3,22 @@
 use App\Jobs\AnalyzeFeedbackSentiment;
 use App\Models\Feedback;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\Support\GeminiHttpFake;
 
 uses(RefreshDatabase::class);
 
+beforeEach(function () {
+    config(['services.gemini.api_key' => 'test-gemini-api-key']);
+});
+
 test('analyze feedback sentiment job processes pending feedback through completed with sentiment and category', function () {
+    GeminiHttpFake::fake([
+        'sentiment' => 'negative',
+        'category' => 'harga',
+    ]);
+
     $feedback = Feedback::create([
         'id' => '550e8400-e29b-41d4-a716-446655440000',
         'customer_name' => 'Budi Santoso',
@@ -15,13 +26,38 @@ test('analyze feedback sentiment job processes pending feedback through complete
         'status_ai' => 'pending',
     ]);
 
-    (new AnalyzeFeedbackSentiment($feedback))->handle();
+    (new AnalyzeFeedbackSentiment($feedback))->handle(app(\App\Services\GeminiClient::class));
 
     $feedback->refresh();
 
     expect($feedback->status_ai)->toBe('completed')
         ->and($feedback->sentiment)->toBe('negative')
         ->and($feedback->category)->toBe('harga');
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), 'generativelanguage.googleapis.com')
+            && str_contains($request->url(), 'key=test-gemini-api-key')
+            && data_get($request->data(), 'contents.0.parts.0.text') === 'Harganya mahal sekali, saya rugi dan kecewa.';
+    });
+});
+
+test('analyze feedback sentiment job marks feedback as failed when gemini api fails', function () {
+    GeminiHttpFake::fakeFailure(429);
+
+    $feedback = Feedback::create([
+        'id' => '650e8400-e29b-41d4-a716-446655440001',
+        'customer_name' => 'Ani Wijaya',
+        'feedback_text' => 'Produk tidak sesuai harapan.',
+        'status_ai' => 'pending',
+    ]);
+
+    (new AnalyzeFeedbackSentiment($feedback))->handle(app(\App\Services\GeminiClient::class));
+
+    $feedback->refresh();
+
+    expect($feedback->status_ai)->toBe('failed')
+        ->and($feedback->sentiment)->toBeNull()
+        ->and($feedback->category)->toBeNull();
 });
 
 test('new feedback dispatches analyze feedback sentiment job to redis queue', function () {

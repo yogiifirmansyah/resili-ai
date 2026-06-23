@@ -1,4 +1,9 @@
-import type { CreateFeedbackPayload, CreateFeedbackResult, Feedback } from "@/types/feedback";
+import type {
+  CreateFeedbackPayload,
+  CreateFeedbackResult,
+  Feedback,
+  FeedbackInsight,
+} from "@/types/feedback";
 
 const API_BASE = (() => {
   const raw = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
@@ -63,6 +68,18 @@ export async function fetchFeedback(): Promise<Feedback[]> {
     `/feedback?_=${Date.now()}`,
   );
   return data ?? [];
+}
+
+export async function fetchFeedbackInsight(): Promise<FeedbackInsight> {
+  const { data } = await request<FeedbackInsight>(
+    `/feedback/insight?_=${Date.now()}`,
+  );
+
+  if (!data?.insight) {
+    throw new ApiError(502, "Insight response is empty.");
+  }
+
+  return data;
 }
 
 export async function createFeedback(

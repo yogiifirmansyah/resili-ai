@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\FeedbackRepositoryInterface;
+use App\Exceptions\GeminiApiException;
 use App\Jobs\AnalyzeFeedbackSentiment;
 use App\Models\Feedback;
 use Illuminate\Database\DetectsLostConnections;
@@ -18,6 +19,7 @@ class FeedbackService
 
     public function __construct(
         private FeedbackRepositoryInterface $repository,
+        private GeminiClient $geminiClient,
     ) {}
 
     /**
@@ -79,6 +81,34 @@ class FeedbackService
                 id: $payload['id'],
                 queued: true,
             );
+        }
+    }
+
+    public function insight(): string
+    {
+        $complaints = $this->repository->latestComplaints();
+
+        if ($complaints->isEmpty()) {
+            return 'Belum ada keluhan pelanggan yang dapat dianalisis.';
+        }
+
+        $compilation = $complaints
+            ->values()
+            ->map(fn (Feedback $feedback, int $index): string => ($index + 1).'. '.$feedback->feedback_text)
+            ->implode("\n");
+
+        try {
+            return $this->geminiClient->generateInsight($compilation);
+        } catch (GeminiApiException $e) {
+            Log::error('Gemini insight generation failed.', [
+                'event' => 'gemini.insight_generation_failed',
+                'complaint_count' => $complaints->count(),
+                'exception_class' => $e::class,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
         }
     }
 
