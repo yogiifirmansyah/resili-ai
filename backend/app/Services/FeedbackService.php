@@ -38,18 +38,28 @@ class FeedbackService
             }
 
             Log::error('MySQL unavailable during feedback submission, routing to Redis fallback.', [
+                'event' => 'feedback.database_connection_failure',
                 'feedback_id' => $payload['id'],
-                'exception' => $e->getMessage(),
-                'exception_class' => $e::class,
+                'feedback' => [
+                    'id' => $payload['id'],
+                    'customer_name' => $payload['customer_name'] ?? null,
+                    'status_ai' => $payload['status_ai'] ?? 'pending',
+                ],
+                'exception' => $e,
             ]);
 
             try {
                 $this->repository->pushToFallbackQueue($payload);
             } catch (Throwable $redisException) {
                 Log::error('Redis fallback queue write failed.', [
+                    'event' => 'feedback.redis_fallback_failure',
                     'feedback_id' => $payload['id'],
-                    'exception' => $redisException->getMessage(),
-                    'exception_class' => $redisException::class,
+                    'feedback' => [
+                        'id' => $payload['id'],
+                        'customer_name' => $payload['customer_name'] ?? null,
+                        'status_ai' => $payload['status_ai'] ?? 'pending',
+                    ],
+                    'exception' => $redisException,
                 ]);
 
                 throw $redisException;

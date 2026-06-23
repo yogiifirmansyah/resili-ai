@@ -1,9 +1,19 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
+
+$jsonFormatter = [
+    'formatter' => JsonFormatter::class,
+    'formatter_with' => [
+        'batchMode' => JsonFormatter::BATCH_MODE_NEWLINES,
+        'appendNewline' => true,
+        'includeStacktraces' => true,
+    ],
+];
 
 return [
 
@@ -63,6 +73,7 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
+            ...$jsonFormatter,
         ],
 
         'daily' => [
@@ -71,6 +82,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+            ...$jsonFormatter,
         ],
 
         'slack' => [
@@ -98,7 +110,12 @@ return [
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
             'handler' => StreamHandler::class,
-            'formatter' => env('LOG_STDERR_FORMATTER'),
+            'formatter' => env('LOG_STDERR_FORMATTER', JsonFormatter::class),
+            'formatter_with' => [
+                'batchMode' => JsonFormatter::BATCH_MODE_NEWLINES,
+                'appendNewline' => true,
+                'includeStacktraces' => true,
+            ],
             'with' => [
                 'stream' => 'php://stderr',
             ],
@@ -125,6 +142,7 @@ return [
 
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
+            ...$jsonFormatter,
         ],
 
     ],
