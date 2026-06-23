@@ -43,12 +43,14 @@ function upsertServerFeedback(
 
 export function Dashboard() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [items, setItems] = useState<FeedbackListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isWatchingAi, setIsWatchingAi] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [degradedMessage, setDegradedMessage] = useState<string | null>(null);
 
   const pollCountRef = useRef(0);
   const pollIntervalRef = useRef<number | null>(null);
@@ -66,8 +68,9 @@ export function Dashboard() {
 
   const [listVersion, setListVersion] = useState(0);
 
-  const applyServerList = useCallback((data: FeedbackListItem[]) => {
+  const applyServerList = useCallback((data: FeedbackListItem[], message?: string | null) => {
     setItems(data.map((item) => ({ ...item })));
+    setDegradedMessage(message ?? null);
     setListVersion((version) => version + 1);
     setIsError(false);
   }, []);
@@ -76,19 +79,20 @@ export function Dashboard() {
     const requestId = ++latestRequestIdRef.current;
 
     try {
-      const data = await fetchFeedback();
+      const result = await fetchFeedback();
 
       if (requestId !== latestRequestIdRef.current) {
         return null;
       }
 
-      applyServerList(data);
-      return data;
-    } catch {
+      applyServerList(result.items, result.degradedMessage);
+      return result.items;
+    } catch (error) {
       if (requestId !== latestRequestIdRef.current) {
         return null;
       }
 
+      setDegradedMessage(null);
       setIsError(true);
       return null;
     }
@@ -166,6 +170,7 @@ export function Dashboard() {
 
     const previousItems = items;
     setErrorMessage(null);
+    setInfoMessage(null);
     setIsSubmitting(true);
     setItems((current) => [buildOptimisticItem(payload), ...current]);
 
@@ -179,6 +184,10 @@ export function Dashboard() {
               ? { ...item, _optimistic: "pending-ai" as const }
               : item,
           ),
+        );
+        setInfoMessage(
+          result.message ??
+            "Feedback disimpan sementara di antrean fallback. Database sedang dalam pemulihan.",
         );
         startWatchingAi();
         return;
@@ -218,6 +227,25 @@ export function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {infoMessage && (
+          <div
+            role="status"
+            className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <p>{infoMessage}</p>
+              <button
+                type="button"
+                onClick={() => setInfoMessage(null)}
+                className="shrink-0 text-amber-700 hover:text-amber-900"
+                aria-label="Tutup notifikasi"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
         {errorMessage && (
           <div
             role="alert"
@@ -276,6 +304,7 @@ export function Dashboard() {
               items={items}
               isLoading={isLoading}
               isError={isError}
+              degradedMessage={degradedMessage}
             />
           </section>
         </div>

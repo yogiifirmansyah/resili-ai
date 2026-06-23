@@ -23,6 +23,11 @@ class FeedbackRepository implements FeedbackRepositoryInterface
         ]);
     }
 
+    public function existsById(string $id): bool
+    {
+        return Feedback::query()->whereKey($id)->exists();
+    }
+
     /**
      * @param  array{id: string, customer_name?: ?string, feedback_text: string, status_ai?: string, sentiment?: ?string, category?: ?string}  $payload
      */

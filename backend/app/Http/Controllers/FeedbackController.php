@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreFeedbackRequest;
+use App\Exceptions\DatabaseUnavailableException;
 use App\Exceptions\GeminiApiException;
+use App\Http\Requests\StoreFeedbackRequest;
 use App\Services\FeedbackService;
 use Illuminate\Http\JsonResponse;
 use OpenApi\Attributes as OA;
@@ -37,7 +38,14 @@ class FeedbackController extends Controller
     )]
     public function index(): JsonResponse
     {
-        return response()->json($this->feedbackService->list());
+        try {
+            return response()->json($this->feedbackService->list());
+        } catch (DatabaseUnavailableException) {
+            return response()->json([
+                'data' => [],
+                'message' => 'Sistem dalam pemulihan, gagal memuat data.',
+            ], 503);
+        }
     }
 
     #[OA\Get(
@@ -75,6 +83,10 @@ class FeedbackController extends Controller
             return response()->json([
                 'insight' => $this->feedbackService->insight(),
             ]);
+        } catch (DatabaseUnavailableException) {
+            return response()->json([
+                'insight' => 'AI tidak dapat memproses insight saat ini karena database sedang offline.',
+            ], 503);
         } catch (GeminiApiException $e) {
             return response()->json([
                 'message' => config('app.debug')

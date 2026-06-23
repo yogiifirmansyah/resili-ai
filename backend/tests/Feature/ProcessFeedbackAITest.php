@@ -10,7 +10,10 @@ use Tests\Support\GeminiHttpFake;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    config(['services.gemini.api_key' => 'test-gemini-api-key']);
+    config([
+        'services.gemini.api_key' => 'test-gemini-api-key',
+        'services.gemini.throttle_seconds' => 0,
+    ]);
 });
 
 test('analyze feedback sentiment job processes pending feedback through completed with sentiment and category', function () {
@@ -41,11 +44,37 @@ test('analyze feedback sentiment job processes pending feedback through complete
     });
 });
 
-test('analyze feedback sentiment job marks feedback as failed when gemini api fails', function () {
+test('analyze feedback sentiment job releases back to queue when gemini api is rate limited', function () {
     GeminiHttpFake::fakeFailure(429);
 
     $feedback = Feedback::create([
         'id' => '650e8400-e29b-41d4-a716-446655440001',
+        'customer_name' => 'Ani Wijaya',
+        'feedback_text' => 'Produk tidak sesuai harapan.',
+        'status_ai' => 'pending',
+    ]);
+
+    $queueJob = Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+    $queueJob->shouldReceive('release')
+        ->once()
+        ->with(30);
+
+    $job = new AnalyzeFeedbackSentiment($feedback);
+    $job->setJob($queueJob);
+    $job->handle(app(\App\Services\GeminiClient::class));
+
+    $feedback->refresh();
+
+    expect($feedback->status_ai)->toBe('processing')
+        ->and($feedback->sentiment)->toBeNull()
+        ->and($feedback->category)->toBeNull();
+});
+
+test('analyze feedback sentiment job marks feedback as failed when gemini api fails with non rate limit error', function () {
+    GeminiHttpFake::fakeFailure(500);
+
+    $feedback = Feedback::create([
+        'id' => '750e8400-e29b-41d4-a716-446655440002',
         'customer_name' => 'Ani Wijaya',
         'feedback_text' => 'Produk tidak sesuai harapan.',
         'status_ai' => 'pending',

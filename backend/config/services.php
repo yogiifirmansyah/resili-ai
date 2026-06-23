@@ -38,6 +38,8 @@ return [
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash-lite'),
+        'throttle_seconds' => (int) env('GEMINI_THROTTLE_SECONDS', 3),
+        'rate_limit_release_seconds' => (int) env('GEMINI_RATE_LIMIT_RELEASE_SECONDS', 30),
     ],
 
 ];

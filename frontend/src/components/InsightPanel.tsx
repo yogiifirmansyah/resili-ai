@@ -9,6 +9,7 @@ interface InsightPanelProps {
 
 export function InsightPanel({ refreshToken = 0 }: InsightPanelProps) {
   const [insight, setInsight] = useState<string | null>(null);
+  const [isDegraded, setIsDegraded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -21,12 +22,15 @@ export function InsightPanel({ refreshToken = 0 }: InsightPanelProps) {
     }
 
     setErrorMessage(null);
+    setIsDegraded(false);
 
     try {
       const data = await fetchFeedbackInsight();
       setInsight(data.insight);
+      setIsDegraded(Boolean(data.degraded));
     } catch (error) {
       setInsight(null);
+      setIsDegraded(false);
       const message =
         error instanceof ApiError
           ? error.message
@@ -84,7 +88,13 @@ export function InsightPanel({ refreshToken = 0 }: InsightPanelProps) {
           </div>
         )}
 
-        {!errorMessage && insight && (
+        {!errorMessage && insight && isDegraded && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm leading-7 text-amber-900">{insight}</p>
+          </div>
+        )}
+
+        {!errorMessage && insight && !isDegraded && (
           <p className="text-sm leading-7 text-zinc-800">{insight}</p>
         )}
       </div>

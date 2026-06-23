@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\FeedbackRepositoryInterface;
+use App\Exceptions\DatabaseUnavailableException;
 use App\Exceptions\GeminiApiException;
 use App\Jobs\AnalyzeFeedbackSentiment;
 use App\Models\Feedback;
@@ -10,6 +11,7 @@ use Illuminate\Database\DetectsLostConnections;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use PDOException;
 use Throwable;
 
@@ -27,7 +29,17 @@ class FeedbackService
      */
     public function list(): Collection
     {
-        return $this->repository->all();
+        try {
+            return $this->repository->all();
+        } catch (QueryException|PDOException|Throwable $e) {
+            if (! $this->isDatabaseConnectionFailure($e)) {
+                throw $e;
+            }
+
+            $this->logDatabaseUnavailable('feedback.list_database_unavailable', $e);
+
+            throw new DatabaseUnavailableException('Database is unavailable.', 0, $e);
+        }
     }
 
     /**
@@ -36,6 +48,12 @@ class FeedbackService
     public function store(array $payload): StoreFeedbackResult
     {
         try {
+            if ($this->repository->existsById($payload['id'])) {
+                throw ValidationException::withMessages([
+                    'id' => ['The id has already been taken.'],
+                ]);
+            }
+
             $feedback = $this->repository->create($payload);
 
             AnalyzeFeedbackSentiment::dispatch($feedback);
@@ -44,6 +62,8 @@ class FeedbackService
                 id: $payload['id'],
                 feedback: $feedback,
             );
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (QueryException|PDOException|Throwable $e) {
             if (! $this->isDatabaseConnectionFailure($e)) {
                 throw $e;
@@ -57,7 +77,9 @@ class FeedbackService
                     'customer_name' => $payload['customer_name'] ?? null,
                     'status_ai' => $payload['status_ai'] ?? 'pending',
                 ],
-                'exception' => $e,
+                'exception_class' => $e::class,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             try {
@@ -71,7 +93,9 @@ class FeedbackService
                         'customer_name' => $payload['customer_name'] ?? null,
                         'status_ai' => $payload['status_ai'] ?? 'pending',
                     ],
-                    'exception' => $redisException,
+                    'exception_class' => $redisException::class,
+                    'message' => $redisException->getMessage(),
+                    'trace' => $redisException->getTraceAsString(),
                 ]);
 
                 throw $redisException;
@@ -86,7 +110,17 @@ class FeedbackService
 
     public function insight(): string
     {
-        $complaints = $this->repository->latestComplaints();
+        try {
+            $complaints = $this->repository->latestComplaints();
+        } catch (QueryException|PDOException|Throwable $e) {
+            if (! $this->isDatabaseConnectionFailure($e)) {
+                throw $e;
+            }
+
+            $this->logDatabaseUnavailable('feedback.insight_database_unavailable', $e);
+
+            throw new DatabaseUnavailableException('Database is unavailable.', 0, $e);
+        }
 
         if ($complaints->isEmpty()) {
             return 'Belum ada keluhan pelanggan yang dapat dianalisis.';
@@ -110,6 +144,16 @@ class FeedbackService
 
             throw $e;
         }
+    }
+
+    private function logDatabaseUnavailable(string $event, Throwable $e): void
+    {
+        Log::error('MySQL unavailable during feedback read operation.', [
+            'event' => $event,
+            'exception_class' => $e::class,
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
     }
 
     private function isDatabaseConnectionFailure(Throwable $e): bool

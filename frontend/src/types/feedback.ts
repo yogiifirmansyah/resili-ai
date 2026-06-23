@@ -35,4 +35,10 @@ export type CreateFeedbackResult =
 
 export interface FeedbackInsight {
   insight: string;
+  degraded?: boolean;
+}
+
+export interface FeedbackListResult {
+  items: Feedback[];
+  degradedMessage?: string;
 }

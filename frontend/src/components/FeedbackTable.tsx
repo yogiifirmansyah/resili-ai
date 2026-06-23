@@ -58,9 +58,15 @@ interface FeedbackTableProps {
   items: FeedbackListItem[];
   isLoading: boolean;
   isError: boolean;
+  degradedMessage?: string | null;
 }
 
-export function FeedbackTable({ items, isLoading, isError }: FeedbackTableProps) {
+export function FeedbackTable({
+  items,
+  isLoading,
+  isError,
+  degradedMessage,
+}: FeedbackTableProps) {
   if (isLoading) {
     return (
       <div className="flex h-48 items-center justify-center rounded-xl border border-zinc-200 bg-white">
@@ -71,9 +77,25 @@ export function FeedbackTable({ items, isLoading, isError }: FeedbackTableProps)
 
   if (isError) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-xl border border-rose-200 bg-rose-50">
-        <p className="text-sm text-rose-700">
-          Gagal memuat data. Pastikan API Laravel berjalan di localhost:8000.
+      <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-8">
+        <p className="text-sm font-medium text-rose-800">
+          Gagal memuat daftar keluhan.
+        </p>
+        <p className="mt-1 text-sm text-rose-700">
+          Pastikan API Laravel berjalan, lalu coba refresh halaman.
+        </p>
+      </div>
+    );
+  }
+
+  if (degradedMessage) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-8">
+        <p className="text-sm font-medium text-amber-900">{degradedMessage}</p>
+        <p className="mt-1 text-sm text-amber-800">
+          {items.length === 0
+            ? "Data keluhan tidak tersedia sementara. Anda masih dapat mengirim feedback baru."
+            : "Menampilkan data terakhir yang tersedia."}
         </p>
       </div>
     );

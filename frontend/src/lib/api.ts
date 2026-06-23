@@ -3,6 +3,7 @@ import type {
   CreateFeedbackResult,
   Feedback,
   FeedbackInsight,
+  FeedbackListResult,
 } from "@/types/feedback";
 
 const API_BASE = (() => {
@@ -63,17 +64,67 @@ async function request<T>(
   return { data: data as T, status: response.status };
 }
 
-export async function fetchFeedback(): Promise<Feedback[]> {
-  const { data } = await request<Feedback[]>(
-    `/feedback?_=${Date.now()}`,
-  );
-  return data ?? [];
+export async function fetchFeedback(): Promise<FeedbackListResult> {
+  const response = await fetch(`${API_BASE}/feedback?_=${Date.now()}`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+
+  const data = await parseJson<Feedback[] | { data: Feedback[]; message: string }>(response);
+
+  if (response.status === 503 && data && !Array.isArray(data) && "data" in data) {
+    return {
+      items: data.data ?? [],
+      degradedMessage:
+        data.message ?? "Sistem dalam pemulihan, gagal memuat data.",
+    };
+  }
+
+  if (!response.ok) {
+    const message =
+      (data as { message?: string } | null)?.message ??
+      `Request failed with status ${response.status}`;
+    throw new ApiError(response.status, message, data);
+  }
+
+  return {
+    items: Array.isArray(data) ? data : [],
+  };
 }
 
 export async function fetchFeedbackInsight(): Promise<FeedbackInsight> {
-  const { data } = await request<FeedbackInsight>(
-    `/feedback/insight?_=${Date.now()}`,
-  );
+  const response = await fetch(`${API_BASE}/feedback/insight?_=${Date.now()}`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+
+  const data = await parseJson<FeedbackInsight & { message?: string }>(response);
+
+  if (
+    response.status === 503 &&
+    data &&
+    typeof data.insight === "string" &&
+    data.insight.length > 0
+  ) {
+    return {
+      insight: data.insight,
+      degraded: true,
+    };
+  }
+
+  if (!response.ok) {
+    const message =
+      data?.message ?? `Request failed with status ${response.status}`;
+    throw new ApiError(response.status, message, data);
+  }
 
   if (!data?.insight) {
     throw new ApiError(502, "Insight response is empty.");

@@ -13,6 +13,8 @@ interface FeedbackRepositoryInterface
      */
     public function create(array $payload): Feedback;
 
+    public function existsById(string $id): bool;
+
     /**
      * @param  array{id: string, customer_name?: ?string, feedback_text: string, status_ai?: string, sentiment?: ?string, category?: ?string}  $payload
      */

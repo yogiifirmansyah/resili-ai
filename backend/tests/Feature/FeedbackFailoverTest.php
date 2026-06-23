@@ -1,11 +1,22 @@
 <?php
 
+use App\Contracts\FeedbackRepositoryInterface;
 use App\Models\Feedback;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Redis;
 
 uses(RefreshDatabase::class);
+
+function connectionRefusedQueryException(string $sql = 'select * from `feedback`'): QueryException
+{
+    return new QueryException(
+        'mysql',
+        $sql,
+        [],
+        new PDOException('SQLSTATE[HY000] [2002] Connection refused')
+    );
+}
 
 test('feedback request validates payload without requiring a live mysql connection', function () {
     $this->postJson('/api/feedback', [
@@ -59,6 +70,68 @@ test('feedback is queued to redis when database create fails with connection err
         ]);
 
     $this->assertDatabaseMissing('feedback', ['id' => $id]);
+});
+
+test('feedback is queued to redis when idempotency check fails with connection error', function () {
+    $id = '9c9e6679-7425-40de-944b-e07fc1f90ae7';
+
+    $this->mock(FeedbackRepositoryInterface::class, function ($mock) use ($id) {
+        $mock->shouldReceive('existsById')
+            ->once()
+            ->with($id)
+            ->andThrow(connectionRefusedQueryException('select exists(select * from `feedback` where `id` = ?) as `exists`'));
+
+        $mock->shouldReceive('pushToFallbackQueue')
+            ->once()
+            ->withArgs(function (array $payload) use ($id) {
+                expect($payload)->toMatchArray([
+                    'id' => $id,
+                    'feedback_text' => 'Database mati saat pengecekan UUID.',
+                    'status_ai' => 'pending',
+                ]);
+
+                return true;
+            });
+    });
+
+    $this->postJson('/api/feedback', [
+        'id' => $id,
+        'feedback_text' => 'Database mati saat pengecekan UUID.',
+    ])
+        ->assertAccepted()
+        ->assertJson([
+            'id' => $id,
+            'queued' => true,
+        ]);
+});
+
+test('feedback list returns graceful 503 when database is unavailable', function () {
+    $this->mock(FeedbackRepositoryInterface::class, function ($mock) {
+        $mock->shouldReceive('all')
+            ->once()
+            ->andThrow(connectionRefusedQueryException());
+    });
+
+    $this->getJson('/api/feedback')
+        ->assertStatus(503)
+        ->assertJson([
+            'data' => [],
+            'message' => 'Sistem dalam pemulihan, gagal memuat data.',
+        ]);
+});
+
+test('feedback insight returns graceful 503 when database is unavailable', function () {
+    $this->mock(FeedbackRepositoryInterface::class, function ($mock) {
+        $mock->shouldReceive('latestComplaints')
+            ->once()
+            ->andThrow(connectionRefusedQueryException('select * from `feedback` order by `created_at` desc limit 100'));
+    });
+
+    $this->getJson('/api/feedback/insight')
+        ->assertStatus(503)
+        ->assertJson([
+            'insight' => 'AI tidak dapat memproses insight saat ini karena database sedang offline.',
+        ]);
 });
 
 test('non connection query exceptions are not sent to redis fallback', function () {

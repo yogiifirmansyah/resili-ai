@@ -14,4 +14,13 @@ class GeminiApiException extends RuntimeException
     ) {
         parent::__construct($message, $code, $previous);
     }
+
+    public function isRateLimit(): bool
+    {
+        if ($this->getCode() === 429) {
+            return true;
+        }
+
+        return stripos($this->getMessage(), 'quota exceeded') !== false;
+    }
 }
