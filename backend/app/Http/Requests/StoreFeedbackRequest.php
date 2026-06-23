@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreFeedbackRequest extends FormRequest
 {
@@ -26,6 +27,7 @@ class StoreFeedbackRequest extends FormRequest
                 'required',
                 'uuid',
                 'regex:/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
+                Rule::unique('feedback', 'id'),
             ],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'feedback_text' => ['required', 'string'],

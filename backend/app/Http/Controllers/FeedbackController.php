@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreFeedbackRequest;
+use App\Jobs\AnalyzeFeedbackSentiment;
 use App\Models\Feedback;
 use Illuminate\Database\DetectsLostConnections;
 use Illuminate\Database\QueryException;
@@ -26,6 +27,8 @@ class FeedbackController extends Controller
 
         try {
             $feedback = Feedback::create($payload);
+
+            AnalyzeFeedbackSentiment::dispatch($feedback);
 
             return response()->json($feedback, 201);
         } catch (QueryException|PDOException|Throwable $e) {
